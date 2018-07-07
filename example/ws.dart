@@ -26,7 +26,6 @@ class ServerEndPoint {
   void onClose(WebSocketSession session) {
     print("connection closed");
   }
-
 }
 
 @Route('/', responseType: "text/html; charset=utf-8;")

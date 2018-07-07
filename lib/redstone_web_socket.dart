@@ -8,6 +8,7 @@ import 'package:logging/logging.dart';
 import "package:redstone/redstone.dart";
 import "package:shelf/shelf.dart" as shelf;
 import "package:shelf_web_socket/shelf_web_socket.dart";
+import 'package:stream_channel/stream_channel.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /**
@@ -104,7 +105,7 @@ class OnClose {
 class WebSocketSession {
   ///The [attributes] map can be used to share
   ///data between web socket events
-  final DynamicMap attributes = new DynamicMap({});
+  final Map attributes = {};
 
   ///The web socket connection
   final WebSocketChannel connection;
@@ -221,14 +222,14 @@ void openMockConnection(String path, MockWebSocket mockConnection, [String proto
 
 class _EndPoint {
   final RegExp urlPattern;
-  final Function handler;
+  final shelf.Handler handler;
   final Function onConnection;
   final bool hasProtocol;
 
   _EndPoint(this.urlPattern, this.handler, this.onConnection, this.hasProtocol);
 }
 
-class _MockServerWebSocket implements WebSocketChannel {
+class _MockServerWebSocket extends StreamChannelMixin implements WebSocketChannel {
   final StreamController _in = new StreamController();
   final StreamController _out = new StreamController();
 
@@ -243,7 +244,7 @@ class _MockServerWebSocket implements WebSocketChannel {
   Stream get stream => _in.stream;
 
   @override
-  WebSocketSink get sink => _out;
+  WebSocketSink get sink => _out.sink;
 
   @override
   String get protocol => _protocol;
@@ -310,7 +311,8 @@ void _installClasses(
     var endPointProtocols = metadata.protocols != null ? metadata.protocols : protocols;
     var endPointAllowedOrigins = metadata.allowedOrigins != null ? metadata.allowedOrigins : allowedOrigins;
 
-    var onConnection = (WebSocketChannel websocket, String protocol) {
+    var onConnection;
+    var onConnectionWithProtocol = (WebSocketChannel websocket, String protocol) {
       var session = new WebSocketSession(websocket, protocol);
 
       _invokeHandler(objMirror, onOpen, [session]);
@@ -327,8 +329,9 @@ void _installClasses(
     var hasProtocol = true;
     if (endPointProtocols == null) {
       hasProtocol = false;
-      var f = onConnection;
-      onConnection = (websocket) => f(websocket, null);
+      onConnection = (websocket) => onConnectionWithProtocol(websocket, null);
+    } else {
+      onConnection = onConnectionWithProtocol;
     }
 
     var handler = webSocketHandler(onConnection, protocols: endPointProtocols, allowedOrigins: endPointAllowedOrigins);
